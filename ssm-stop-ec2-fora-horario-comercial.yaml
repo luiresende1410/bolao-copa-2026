@@ -1,0 +1,110 @@
+---
+# =============================================================================
+# SSM Automation Document - Desligar EC2 fora do horário comercial
+# =============================================================================
+# 
+# Este documento do Systems Manager Automation para/inicia instâncias EC2
+# com base no horário comercial definido.
+#
+# COMO USAR:
+# 1. Crie o documento no SSM (Console > Systems Manager > Documents > Create)
+# 2. Configure um EventBridge Schedule para disparar nos horários desejados
+# 3. Associe a role IAM com permissões necessárias
+#
+# HORÁRIO PADRÃO:
+# - Desligar: 19:00 (horário de Brasília / UTC-3)
+# - Ligar: 07:00 (horário de Brasília / UTC-3)
+#
+# PRÉ-REQUISITOS:
+# - IAM Role com permissões ec2:StopInstances, ec2:StartInstances, ec2:DescribeInstances
+# - Instâncias tagueadas com: AutoShutdown = true
+# =============================================================================
+
+schemaVersion: "0.3"
+description: |
+  Automação para desligar instâncias EC2 fora do horário comercial.
+  Filtra instâncias pela tag AutoShutdown=true e executa Stop/Start
+  conforme o parâmetro de ação informado.
+
+assumeRole: "{{ AutomationAssumeRole }}"
+
+parameters:
+  AutomationAssumeRole:
+    type: String
+    description: "(Obrigatório) ARN da IAM Role que o SSM Automation vai assumir."
+    default: ""
+
+  Action:
+    type: String
+    description: "(Obrigatório) Ação a executar: Stop ou Start."
+    allowedValues:
+      - "Stop"
+      - "Start"
+    default: "Stop"
+
+  TagKey:
+    type: String
+    description: "Chave da tag para filtrar instâncias."
+    default: "AutoShutdown"
+
+  TagValue:
+    type: String
+    description: "Valor da tag para filtrar instâncias."
+    default: "true"
+
+  Region:
+    type: String
+    description: "Região AWS onde as instâncias estão."
+    default: "sa-east-1"
+
+mainSteps:
+  - name: GetInstancesByTag
+    action: aws:executeAwsApi
+    description: "Busca instâncias EC2 com a tag especificada."
+    inputs:
+      Service: ec2
+      Api: DescribeInstances
+      Filters:
+        - Name: "tag:{{ TagKey }}"
+          Values:
+            - "{{ TagValue }}"
+        - Name: "instance-state-name"
+          Values:
+            - "running"
+    outputs:
+      - Name: InstanceIds
+        Selector: "$.Reservations..Instances..InstanceId"
+        Type: StringList
+    nextStep: CheckAction
+
+  - name: CheckAction
+    action: aws:branch
+    description: "Decide se vai parar ou iniciar as instâncias."
+    inputs:
+      Choices:
+        - NextStep: StopInstances
+          Variable: "{{ Action }}"
+          StringEquals: "Stop"
+        - NextStep: StartInstances
+          Variable: "{{ Action }}"
+          StringEquals: "Start"
+      Default: StopInstances
+
+  - name: StopInstances
+    action: aws:changeInstanceState
+    description: "Para as instâncias EC2 filtradas."
+    inputs:
+      InstanceIds: "{{ GetInstancesByTag.InstanceIds }}"
+      DesiredState: stopped
+    isEnd: true
+
+  - name: StartInstances
+    action: aws:changeInstanceState
+    description: "Inicia as instâncias EC2 filtradas."
+    inputs:
+      InstanceIds: "{{ GetInstancesByTag.InstanceIds }}"
+      DesiredState: running
+    isEnd: true
+
+outputs:
+  - GetInstancesByTag.InstanceIds

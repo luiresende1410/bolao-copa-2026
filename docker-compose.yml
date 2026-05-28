@@ -1,0 +1,106 @@
+services:
+  # === PostgreSQL ===
+  postgres:
+    image: postgres:16-alpine
+    container_name: whatsapp-panel-db
+    environment:
+      POSTGRES_DB: whatsapp_panel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/infra/database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # === Redis ===
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp-panel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # === API Service ===
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-panel-api
+    command: ["node", "dist/api/server.js"]
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT_API: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: whatsapp_panel
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SSL: "false"
+      DB_POOL_MIN: 2
+      DB_POOL_MAX: 10
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_TLS: "false"
+      JWT_SECRET: dev-jwt-secret-min-32-chars-here!!
+      JWT_ISSUER: whatsapp-panel
+      JWT_EXPIRATION: 8h
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # === Sincronizador de Resultados (cron a cada 5 min) ===
+  sincronizador:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-panel-sincronizador
+    command: ["node", "dist/infra/bolao/sincronizador.task.js"]
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: whatsapp_panel
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SSL: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_TLS: "false"
+      SYNC_INTERVAL_MS: 300000
+      SYNC_API_TIMEOUT_MS: 10000
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

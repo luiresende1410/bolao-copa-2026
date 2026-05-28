@@ -1,0 +1,16 @@
+﻿node_modules
+dist
+.git
+.kiro
+tests
+*.md
+.env
+.env.*
+!.env.example
+docker-compose.yml
+Dockerfile
+.eslintrc.json
+.prettierrc
+.prettierignore
+coverage
+.vscode
