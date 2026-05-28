@@ -1,4 +1,4 @@
-﻿# === Multi-stage build para Painel Multiatendente WhatsApp ===
+# === Multi-stage build para Painel Multiatendente WhatsApp ===
 
 # Stage 1: Build
 FROM node:22-alpine AS builder
@@ -6,7 +6,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN apk add --no-cache python3 make g++ && npm ci
 
 COPY tsconfig.json ./
 COPY src/ ./src/
@@ -18,9 +18,9 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Instalar apenas dependencias de producao
+# Instalar apenas dependencias de producao (bcrypt needs native build)
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN apk add --no-cache python3 make g++ && npm ci --omit=dev && npm cache clean --force && apk del python3 make g++
 
 # Copiar build
 COPY --from=builder /app/dist ./dist

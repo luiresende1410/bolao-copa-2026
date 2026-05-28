@@ -1,7 +1,9 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 app.use(express.json());
@@ -19,6 +21,8 @@ const pool = new Pool({
   min: parseInt(process.env.DB_POOL_MIN || '2'),
   max: parseInt(process.env.DB_POOL_MAX || '10'),
 });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-min-32-chars-here!!';
 
 // 1. Health check
 app.get('/health', async (_req: any, res: any) => {
@@ -86,17 +90,41 @@ app.get('/api/v1/bolao/grupos/:id/participantes', async (req: any, res: any) => 
 // 6. Add participant to group
 app.post('/api/v1/bolao/grupos/:id/participantes', async (req: any, res: any) => {
   const { id } = req.params;
-  const { nome, telefone } = req.body;
+  const { nome, telefone, senha } = req.body;
   if (!nome || !telefone) return res.status(400).json({ code: 'BOLAO_VALIDATION_ERROR', message: 'Nome e telefone obrigatorios' });
   try {
+    let senhaParaSalvar = senha;
+    let senhaGerada: string | null = null;
+    if (!senhaParaSalvar) {
+      senhaGerada = Math.random().toString(36).slice(-6);
+      senhaParaSalvar = senhaGerada;
+    }
+    const senhaHash = await bcrypt.hash(senhaParaSalvar, 10);
     const r = await pool.query(
-      'INSERT INTO participante (grupo_bolao_id, nome, telefone) VALUES ($1, $2, $3) RETURNING *',
-      [id, nome.trim(), telefone.trim()]
+      'INSERT INTO participante (grupo_bolao_id, nome, telefone, senha_hash) VALUES ($1, $2, $3, $4) RETURNING *',
+      [id, nome.trim(), telefone.trim(), senhaHash]
     );
-    res.status(201).json(r.rows[0]);
+    const response: any = r.rows[0];
+    if (senhaGerada) response.senha_gerada = senhaGerada;
+    res.status(201).json(response);
   } catch (e: any) {
     if (e.code === '23505') return res.status(409).json({ code: 'BOLAO_PARTICIPANTE_DUPLICADO', message: 'Participante ja cadastrado neste grupo' });
     if (e.code === '23503') return res.status(404).json({ code: 'BOLAO_NOT_FOUND', message: 'Grupo nao encontrado' });
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// 6b. Admin - Set participant password
+app.post('/api/v1/bolao/participantes/:id/senha', async (req: any, res: any) => {
+  const { id } = req.params;
+  const { senha } = req.body;
+  if (!senha || senha.length < 4) return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Senha deve ter no minimo 4 caracteres' });
+  try {
+    const hash = await bcrypt.hash(senha, 10);
+    const r = await pool.query('UPDATE participante SET senha_hash = $1 WHERE id = $2 RETURNING id, nome, telefone', [hash, id]);
+    if (r.rowCount === 0) return res.status(404).json({ code: 'NOT_FOUND', message: 'Participante nao encontrado' });
+    res.json({ message: 'Senha definida com sucesso', participante: r.rows[0] });
+  } catch (e: any) {
     res.status(500).json({ message: e.message });
   }
 });
@@ -343,6 +371,43 @@ app.get('/api/v1/bolao/participante/:id/palpites', async (req: any, res: any) =>
   }
 });
 
+// === AUTH MIDDLEWARE ===
+function authMiddleware(req: any, res: any, next: any) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Token obrigatorio' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.participante = decoded;
+    next();
+  } catch { return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Token invalido' }); }
+}
+
+// 18. Auth login (phone + password)
+app.post('/api/v1/bolao/auth/login', async (req: any, res: any) => {
+  const { telefone, senha } = req.body;
+  if (!telefone || !senha) return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Telefone e senha obrigatorios' });
+  try {
+    const r = await pool.query(
+      'SELECT p.*, g.nome as grupo_nome FROM participante p JOIN grupo_bolao g ON g.id = p.grupo_bolao_id WHERE p.telefone = $1',
+      [telefone]
+    );
+    if (r.rows.length === 0) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Telefone ou senha incorretos' });
+    const participante = r.rows[0];
+    if (!participante.senha_hash) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Senha nao configurada. Peca ao admin para redefinir.' });
+    const match = await bcrypt.compare(senha, participante.senha_hash);
+    if (!match) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Telefone ou senha incorretos' });
+    const payload = { id: participante.id, nome: participante.nome, grupo_bolao_id: participante.grupo_bolao_id, grupo_nome: participante.grupo_nome };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, participante: payload });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// 19. Auth me (protected)
+app.get('/api/v1/bolao/auth/me', authMiddleware, (req: any, res: any) => {
+  res.json(req.participante);
+});
 const PORT = parseInt(process.env.PORT_API || '3000');
 app.listen(PORT, '0.0.0.0', () => {
   console.log('Bolao API on port ' + PORT);

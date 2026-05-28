@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -62,9 +62,12 @@ tr:hover td{background:var(--surface2)}
 </header>
 <div id="loginSection">
 <div class="card">
-<h2>Entrar com seu telefone</h2>
+<h2>Entrar</h2>
 <div style="margin-bottom:12px">
 <input id="phoneInput" type="tel" placeholder="+5511999999999" autocomplete="tel">
+</div>
+<div style="margin-bottom:12px">
+<input id="passwordInput" type="password" placeholder="Sua senha">
 </div>
 <button class="btn btn-primary" onclick="login()">Entrar</button>
 </div>
@@ -106,8 +109,11 @@ function toast(msg, type='success') {
 
 async function apiFetch(path, opts={}) {
   try {
+    const token = localStorage.getItem('bolao_token');
+    const headers = {'Content-Type':'application/json', ...opts.headers};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     const res = await fetch(path, {
-      headers: {'Content-Type':'application/json', ...opts.headers},
+      headers,
       ...opts
     });
     const data = await res.json();
@@ -121,7 +127,8 @@ async function apiFetch(path, opts={}) {
 
 function init() {
   const saved = localStorage.getItem('bolao_participante');
-  if (saved) {
+  const token = localStorage.getItem('bolao_token');
+  if (saved && token) {
     try {
       participante = JSON.parse(saved);
       showMain();
@@ -148,20 +155,27 @@ function showMain() {
 }
 
 async function login() {
-  const phone = document.getElementById('phoneInput').value.trim();
-  if (!phone) { toast('Digite seu telefone', 'error'); return; }
+  const telefone = document.getElementById('phoneInput').value.trim();
+  const senha = document.getElementById('passwordInput').value;
+  if (!telefone) { toast('Digite seu telefone', 'error'); return; }
+  if (!senha) { toast('Digite sua senha', 'error'); return; }
   try {
-    const data = await apiFetch('/api/v1/bolao/participante/telefone/' + encodeURIComponent(phone));
-    participante = data;
-    localStorage.setItem('bolao_participante', JSON.stringify(data));
+    const data = await apiFetch('/api/v1/bolao/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ telefone, senha })
+    });
+    localStorage.setItem('bolao_token', data.token);
+    localStorage.setItem('bolao_participante', JSON.stringify(data.participante));
+    participante = data.participante;
     showMain();
-    toast('Bem-vindo, ' + data.nome + '!');
+    toast('Bem-vindo, ' + data.participante.nome + '!');
   } catch {}
 }
 
 function logout() {
   participante = null;
   localStorage.removeItem('bolao_participante');
+  localStorage.removeItem('bolao_token');
   showLogin();
 }
 
