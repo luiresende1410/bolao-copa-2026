@@ -50,6 +50,14 @@ tr:hover td{background:var(--surface2)}
 .toast-error{background:var(--error)}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 #loginSection,#mainContent{display:none}
+.rules-card{cursor:pointer;user-select:none}
+.rules-card .rules-header{display:flex;align-items:center;justify-content:space-between}
+.rules-card .rules-header .arrow{transition:transform .3s;font-size:0.8rem}
+.rules-card .rules-header .arrow.open{transform:rotate(180deg)}
+.rules-card .rules-content{display:none;margin-top:14px;font-size:0.82rem;line-height:1.7;color:var(--text-muted)}
+.rules-card .rules-content.show{display:block}
+.rules-card .rules-content strong{color:var(--text)}
+.rules-card .rules-content .rule-item{margin-bottom:10px;padding-left:4px}
 .section{margin-bottom:24px}
 .logout-link{display:block;text-align:center;color:var(--text-muted);font-size:0.8rem;cursor:pointer;margin-top:16px;text-decoration:underline}
 </style>
@@ -74,6 +82,25 @@ tr:hover td{background:var(--surface2)}
 </div>
 <div id="mainContent">
 <div class="welcome" id="welcomeBox"></div>
+<div class="section">
+<div class="card rules-card" onclick="toggleRules()">
+<div class="rules-header">
+<h2>&#128203; Regras de Pontua&ccedil;&atilde;o</h2>
+<span class="arrow" id="rulesArrow">&#9660;</span>
+</div>
+<div class="rules-content" id="rulesContent">
+<p style="margin-bottom:12px;color:var(--text)"><strong>Como funciona a pontua&ccedil;&atilde;o:</strong></p>
+<div class="rule-item">&#127919; <strong>Placar Exato &mdash; 10 pontos</strong><br>Acertou o placar completo (ex: palpitou 2x1 e o jogo terminou 2x1)</div>
+<div class="rule-item">&#128202; <strong>Diferen&ccedil;a de Gols &mdash; 7 pontos</strong><br>Acertou o vencedor E a diferen&ccedil;a de gols (ex: palpitou 3x1 e terminou 2x0 &mdash; ambos diferen&ccedil;a de 2)</div>
+<div class="rule-item">&#9989; <strong>Vencedor Correto &mdash; 5 pontos</strong><br>Acertou quem ganhou, mas errou o placar e a diferen&ccedil;a (ex: palpitou 3x0 e terminou 1x0)</div>
+<div class="rule-item">&#129309; <strong>Empate Correto &mdash; 5 pontos</strong><br>Palpitou empate e o jogo terminou empatado, mas com placar diferente (ex: palpitou 0x0 e terminou 1x1)</div>
+<div class="rule-item">&#9917; <strong>Gols Parciais &mdash; 3 pontos</strong><br>Acertou os gols de exatamente um dos times (ex: palpitou 2x1 e terminou 2x3 &mdash; acertou o 2 do mandante)</div>
+<div class="rule-item">&#10060; <strong>Erro &mdash; 0 pontos</strong><br>N&atilde;o se enquadrou em nenhuma das categorias acima</div>
+<p style="margin-top:14px;color:var(--text)"><strong>Crit&eacute;rios de desempate no ranking:</strong></p>
+<div class="rule-item">1&ordm; Maior pontua&ccedil;&atilde;o total<br>2&ordm; Mais acertos exatos<br>3&ordm; Mais acertos de vencedor</div>
+</div>
+</div>
+</div>
 <div class="section">
 <div class="card">
 <h2>&#9918; Proximos Jogos</h2>
@@ -249,6 +276,13 @@ async function loadRanking() {
       }).join('') +
       '</tbody></table>';
   } catch { el.innerHTML = '<div class="empty">Erro ao carregar ranking</div>'; }
+}
+
+function toggleRules() {
+  const content = document.getElementById('rulesContent');
+  const arrow = document.getElementById('rulesArrow');
+  content.classList.toggle('show');
+  arrow.classList.toggle('open');
 }
 
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }

@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { Pool } from 'pg';
@@ -23,6 +23,14 @@ const pool = new Pool({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-min-32-chars-here!!';
+
+// Admin login
+app.post('/api/v1/bolao/admin/login', (req: any, res: any) => {
+  const { senha } = req.body;
+  const adminPassword = process.env.ADMIN_PASSWORD || 'bolao2026admin';
+  if (senha !== adminPassword) return res.status(401).json({ code: 'AUTH_ERROR', message: 'Senha de administrador incorreta' });
+  res.json({ authenticated: true, token: 'admin-' + Date.now() });
+});
 
 // 1. Health check
 app.get('/health', async (_req: any, res: any) => {

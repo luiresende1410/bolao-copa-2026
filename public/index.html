@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -56,21 +56,72 @@ tr:hover td{background:var(--surface2)}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 .empty{text-align:center;padding:40px;color:var(--text-muted)}
 
+#adminLoginOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10000}
+#adminLoginOverlay .login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;width:100%;max-width:360px;text-align:center}
+#adminLoginOverlay .login-box h2{margin-bottom:20px;color:var(--text)}
+#adminLoginOverlay .login-box input{margin-bottom:12px}
+#adminLoginOverlay .login-box .btn{width:100%}
+.btn-logout{padding:6px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;background:var(--surface2);color:var(--text-muted);transition:all .2s}
+.btn-logout:hover{background:var(--error);color:#fff}
 .loading{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:768px){.form-row{grid-template-columns:1fr}nav{overflow-x:auto}nav button{white-space:nowrap;font-size:0.8rem;padding:8px 12px}}
 </style>
 </head>
 <body>
-<div class="container">
+<div id="adminLoginOverlay" style="display:none">
+<div class="login-box">
+<h2>&#128274; Admin - Bolao Copa 2026</h2>
+<input id="adminPasswordInput" type="password" placeholder="Senha de administrador">
+<button class="btn btn-primary" onclick="adminLogin()">Entrar</button>
+<p style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Acesso restrito a administradores</p>
+</div>
+</div>
+<div class="container" id="adminContainer" style="display:none">
 <header>
 <h1>&#9917; Bolao Copa 2026</h1>
-<div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Verificando...</span></div>
+<div style="display:flex;align-items:center;gap:12px"><div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Verificando...</span></div><button class="btn-logout" onclick="adminLogout()">Sair</button></div>
 </header>
 <nav id="nav"></nav>
 <main id="main"></main>
 </div>
 <div class="toast-container" id="toasts"></div><script>
+// Admin auth check
+function checkAdminAuth() {
+  const token = localStorage.getItem('bolao_admin_token');
+  if (!token) {
+    document.getElementById('adminLoginOverlay').style.display = 'flex';
+    document.getElementById('adminContainer').style.display = 'none';
+  } else {
+    document.getElementById('adminLoginOverlay').style.display = 'none';
+    document.getElementById('adminContainer').style.display = 'block';
+  }
+}
+
+async function adminLogin() {
+  const senha = document.getElementById('adminPasswordInput').value;
+  if (!senha) { toast('Digite a senha', 'error'); return; }
+  try {
+    const res = await fetch('/api/v1/bolao/admin/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({senha})
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.message || 'Senha incorreta', 'error'); return; }
+    localStorage.setItem('bolao_admin_token', data.token);
+    checkAdminAuth();
+    toast('Bem-vindo, admin!');
+  } catch(e) { toast('Erro ao autenticar', 'error'); }
+}
+
+function adminLogout() {
+  localStorage.removeItem('bolao_admin_token');
+  checkAdminAuth();
+}
+
+checkAdminAuth();
+
 const API = '';
 const tabs = [
   {id:'dashboard',label:'Dashboard'},
