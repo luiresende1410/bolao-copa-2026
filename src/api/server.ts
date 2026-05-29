@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { Pool } from 'pg';
@@ -98,8 +98,8 @@ app.get('/api/v1/bolao/grupos/:id/participantes', async (req: any, res: any) => 
 // 6. Add participant to group
 app.post('/api/v1/bolao/grupos/:id/participantes', async (req: any, res: any) => {
   const { id } = req.params;
-  const { nome, telefone, senha } = req.body;
-  if (!nome || !telefone) return res.status(400).json({ code: 'BOLAO_VALIDATION_ERROR', message: 'Nome e telefone obrigatorios' });
+  const { nome, telefone, login, senha } = req.body;
+  if (!nome || !login) return res.status(400).json({ code: 'BOLAO_VALIDATION_ERROR', message: 'Nome e login obrigatorios' });
   try {
     let senhaParaSalvar = senha;
     let senhaGerada: string | null = null;
@@ -109,8 +109,8 @@ app.post('/api/v1/bolao/grupos/:id/participantes', async (req: any, res: any) =>
     }
     const senhaHash = await bcrypt.hash(senhaParaSalvar, 10);
     const r = await pool.query(
-      'INSERT INTO participante (grupo_bolao_id, nome, telefone, senha_hash) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id, nome.trim(), telefone.trim(), senhaHash]
+      'INSERT INTO participante (grupo_bolao_id, nome, telefone, login, senha_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [id, nome.trim(), telefone ? telefone.trim() : null, login.trim(), senhaHash]
     );
     const response: any = r.rows[0];
     if (senhaGerada) response.senha_gerada = senhaGerada;
@@ -392,18 +392,18 @@ function authMiddleware(req: any, res: any, next: any) {
 
 // 18. Auth login (phone + password)
 app.post('/api/v1/bolao/auth/login', async (req: any, res: any) => {
-  const { telefone, senha } = req.body;
-  if (!telefone || !senha) return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Telefone e senha obrigatorios' });
+  const { login, senha } = req.body;
+  if (!login || !senha) return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Login e senha obrigatorios' });
   try {
     const r = await pool.query(
-      'SELECT p.*, g.nome as grupo_nome FROM participante p JOIN grupo_bolao g ON g.id = p.grupo_bolao_id WHERE p.telefone = $1',
-      [telefone]
+      'SELECT p.*, g.nome as grupo_nome FROM participante p JOIN grupo_bolao g ON g.id = p.grupo_bolao_id WHERE p.login = $1',
+      [login]
     );
-    if (r.rows.length === 0) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Telefone ou senha incorretos' });
+    if (r.rows.length === 0) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Login ou senha incorretos' });
     const participante = r.rows[0];
     if (!participante.senha_hash) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Senha nao configurada. Peca ao admin para redefinir.' });
     const match = await bcrypt.compare(senha, participante.senha_hash);
-    if (!match) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Telefone ou senha incorretos' });
+    if (!match) return res.status(401).json({ code: 'UNAUTHORIZED', message: 'Login ou senha incorretos' });
     const payload = { id: participante.id, nome: participante.nome, grupo_bolao_id: participante.grupo_bolao_id, grupo_nome: participante.grupo_nome };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, participante: payload });

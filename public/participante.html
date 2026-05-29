@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -72,7 +72,7 @@ tr:hover td{background:var(--surface2)}
 <div class="card">
 <h2>Entrar</h2>
 <div style="margin-bottom:12px">
-<input id="phoneInput" type="tel" placeholder="+5511999999999" autocomplete="tel">
+<input id="loginInput" type="text" placeholder="Seu login" autocomplete="username">
 </div>
 <div style="margin-bottom:12px">
 <input id="passwordInput" type="password" placeholder="Sua senha">
@@ -182,14 +182,14 @@ function showMain() {
 }
 
 async function login() {
-  const telefone = document.getElementById('phoneInput').value.trim();
+  const login = document.getElementById('loginInput').value.trim();
   const senha = document.getElementById('passwordInput').value;
-  if (!telefone) { toast('Digite seu telefone', 'error'); return; }
+  if (!login) { toast('Digite seu login', 'error'); return; }
   if (!senha) { toast('Digite sua senha', 'error'); return; }
   try {
     const data = await apiFetch('/api/v1/bolao/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ telefone, senha })
+      body: JSON.stringify({ login, senha })
     });
     localStorage.setItem('bolao_token', data.token);
     localStorage.setItem('bolao_participante', JSON.stringify(data.participante));

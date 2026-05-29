@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -242,7 +242,7 @@ async function deletarGrupo(id) {
 }
 </script><script>
 async function renderParticipantes(el) {
-  el.innerHTML = '<div class="card"><h2>Participantes</h2><div class="form-group"><label>Selecionar Grupo</label><select id="partGrupo" onchange="loadParticipantes()"><option value="">-- Selecione --</option></select></div><div class="form-row"><div class="form-group"><label>Nome</label><input id="partNome" placeholder="Nome do participante"></div><div class="form-group"><label>Telefone</label><input id="partTel" placeholder="+5511999999999"></div></div><div class="form-group"><label>Senha (opcional - se vazio, sera gerada automaticamente)</label><input id="partSenha" type="text" placeholder="Senha do participante"></div><button class="btn btn-primary" style="margin-top:12px" onclick="addParticipante()">Adicionar Participante</button></div><div class="card"><h3>Lista de Participantes</h3><div id="partList"></div></div>';
+  el.innerHTML = '<div class="card"><h2>Participantes</h2><div class="form-group"><label>Selecionar Grupo</label><select id="partGrupo" onchange="loadParticipantes()"><option value="">-- Selecione --</option></select></div><div class="form-row"><div class="form-group"><label>Nome</label><input id="partNome" placeholder="Nome do participante"></div><div class="form-group"><label>Login</label><input id="partLogin" placeholder="Login do participante"></div></div><div class="form-row"><div class="form-group"><label>Telefone (opcional)</label><input id="partTel" placeholder="+5511999999999"></div></div><div class="form-group"><label>Senha (opcional - se vazio, sera gerada automaticamente)</label><input id="partSenha" type="text" placeholder="Senha do participante"></div><button class="btn btn-primary" style="margin-top:12px" onclick="addParticipante()">Adicionar Participante</button></div><div class="card"><h3>Lista de Participantes</h3><div id="partList"></div></div>';
   await loadGruposSelect('partGrupo');
 }
 
@@ -266,8 +266,8 @@ async function loadParticipantes() {
     participantesCache = r.data || r || [];
     if (!Array.isArray(participantesCache)) participantesCache = [];
     if (!participantesCache.length) { el.innerHTML = '<div class="empty">Nenhum participante</div>'; return; }
-    el.innerHTML = '<table><thead><tr><th>Nome</th><th>Telefone</th><th>Criado em</th><th>Acoes</th></tr></thead><tbody>' +
-      participantesCache.map(p => '<tr><td>' + esc(p.nome) + '</td><td>' + esc(p.telefone||'-') + '</td><td>' + fmtDate(p.created_at) + '</td><td><button class="btn btn-primary btn-sm" style="margin-right:6px" onclick="definirSenha(\'' + p.id + '\', \'' + esc(p.nome) + '\')">Senha</button><button class="btn btn-danger btn-sm" onclick="deletarParticipante(\'' + p.id + '\')">Excluir</button></td></tr>').join('') +
+    el.innerHTML = '<table><thead><tr><th>Nome</th><th>Login</th><th>Telefone</th><th>Criado em</th><th>Acoes</th></tr></thead><tbody>' +
+      participantesCache.map(p => '<tr><td>' + esc(p.nome) + '</td><td>' + esc(p.login||'-') + '</td><td>' + esc(p.telefone||'-') + '</td><td>' + fmtDate(p.created_at) + '</td><td><button class="btn btn-primary btn-sm" style="margin-right:6px" onclick="definirSenha(\'' + p.id + '\', \'' + esc(p.nome) + '\')">Senha</button><button class="btn btn-danger btn-sm" onclick="deletarParticipante(\'' + p.id + '\')">Excluir</button></td></tr>').join('') +
       '</tbody></table>';
   } catch { el.innerHTML = '<div class="empty">Erro ao carregar</div>'; }
 }
@@ -290,12 +290,13 @@ async function definirSenha(id, nome) {
 async function addParticipante() {
   const gid = document.getElementById('partGrupo').value;
   const nome = document.getElementById('partNome').value.trim();
+  const login = document.getElementById('partLogin').value.trim();
   const telefone = document.getElementById('partTel').value.trim();
   const senha = document.getElementById('partSenha').value;
   if (!gid) { toast('Selecione um grupo', 'error'); return; }
   if (!nome) { toast('Nome obrigatorio', 'error'); return; }
-  if (!telefone) { toast('Telefone obrigatorio', 'error'); return; }
-  const body = {nome, telefone};
+  if (!login) { toast('Login obrigatorio', 'error'); return; }
+  const body = {nome, telefone: telefone || null, login};
   if (senha) body.senha = senha;
   const result = await api('/api/v1/bolao/grupos/' + gid + '/participantes', {method:'POST', body:JSON.stringify(body)});
   if (result.senha_gerada) {
@@ -304,6 +305,7 @@ async function addParticipante() {
     toast('Participante adicionado');
   }
   document.getElementById('partNome').value = '';
+  document.getElementById('partLogin').value = '';
   document.getElementById('partTel').value = '';
   document.getElementById('partSenha').value = '';
   await loadParticipantes();
